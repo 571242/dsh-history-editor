@@ -1,0 +1,53 @@
+{
+  "target": "F:/EXE/DeepSeek/resources/app.asar",
+  "originalSha256": "983ca71114e6dfd353fc79af5a1f9481a250ee64c2a3c757673029b811b23bc2",
+  "patchedSha256": "336202deb8c8038f6cfa88ee70d1263eba902e25b65b657401a27de012a45e76",
+  "checkedFiles": 12967,
+  "unchangedUnpackedFiles": 1497,
+  "patches": [
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js",
+      "before": "a33cbb8130b6e17cf1f7d5d1d7392567694050ca9ab5960ced66e264ea72fbbb",
+      "after": "eddddc9a52fef3a3c621b8dccd2a47131ec8d4f01ec0ccfb4d4af8f4c4e26e4f",
+      "bytes": 565330
+    },
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-session-format-v3-to-v4/lib/index.js",
+      "before": "382a3f28b95e0b9504969ac6f407f909aef0ba4699c3175d36c0ef91b31cfde2",
+      "after": "5b8dd41c2219079980290e23f4bfdb060db4f25c309f851d57c6f5ce82b48bcc",
+      "bytes": 73673
+    },
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js",
+      "before": "87ea85e2fb5318bf1f826db9a1c88c1b26d3ea328027a7f32b211880c4d62b9d",
+      "after": "f895e74c34a01b2a5a373f367e189dd16f463498d603a002a058bb044e4de878",
+      "bytes": 90174
+    },
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-session/lib/invariant.js",
+      "before": "53066dc4945c0159fb5b48944b578a2d2d22f2f3bd5042599f2f6278edc84466",
+      "after": "c85350ac0043f385754b41b139df7169887ff801eda698bd458b1d24de2013e8",
+      "bytes": 6977
+    },
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-session/lib/types/invariant.js",
+      "before": "975e1640ad5dba930b6031315ee7d98dd01151155d2db7e993021de1feef4f32",
+      "after": "c6313deeb179ef4949f446c0c91f418462a9715c48fa5b26c20ca08dd6192577",
+      "bytes": 9297
+    },
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-session/lib/types/surface.js",
+      "before": "7e9d4bd3b7c5b2eceed0f8b035e9c021237c72baa2b53e4c6fc941e8b417580e",
+      "after": "53c26baa8aee545f822ad57162e77201fc3642bab4bf79de122ce3a0bc9143f5",
+      "bytes": 26635
+    },
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-token-meter/lib/index.js",
+      "before": "39ed60a470b240f8bbc82befdb0bbbad1f409732e8ba8d12d41a1059de0dde05",
+      "after": "a8aa3817a64c18ffd3c9a66f995e3b9de22da44de6cf3cc6157bb28e7132e8dd",
+      "bytes": 31632
+    }
+  ],
+  "createdAt": "2026-10-17T00:22:35.256Z",
+  "installed": false
+}
