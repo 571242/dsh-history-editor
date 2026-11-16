@@ -385,11 +385,11 @@ window.__ModuleLoader__.load({
       var att = block.attachment || {};
       var ext = prim("fileExtension"), size = prim("fileSizeText");
       var meta = [ext ? String(ext(att.name) || "").toUpperCase().slice(0, 8) : "", size ? size(att.bytes) : ""].filter(Boolean).join(" ");
-      return React.createElement("span", { className: "cJsG2q_fileCard dsh-he-file", title: att.name, key: "f" + index }, [
-        FileTypeIcon ? React.createElement(FileTypeIcon, { key: "i", path: att.name, className: "cJsG2q_fileIcon dsh-he-fileIcon" }) : null,
-        React.createElement("span", { className: "cJsG2q_fileContent dsh-he-fileBody", key: "b" }, [
-          React.createElement("span", { className: "cJsG2q_fileName dsh-he-fileName", key: "n" }, att.name || ""),
-          React.createElement("span", { className: "cJsG2q_fileMeta dsh-he-fileMeta", key: "m" }, meta)
+      return React.createElement("span", { className: "dsh-he-file", title: att.name, key: "f" + index }, [
+        FileTypeIcon ? React.createElement(FileTypeIcon, { key: "i", path: att.name, className: "dsh-he-fileIcon" }) : null,
+        React.createElement("span", { className: "dsh-he-fileBody", key: "b" }, [
+          React.createElement("span", { className: "dsh-he-fileName", key: "n" }, att.name || ""),
+          React.createElement("span", { className: "dsh-he-fileMeta", key: "m" }, meta)
         ])
       ]);
     }
@@ -399,14 +399,16 @@ window.__ModuleLoader__.load({
       var compact = parts.attachments.length > 1;
       var cells = parts.attachments.map(function (a, i) {
         if (a.type === "file") return fileCard(a.block, i);
-        if (typeof props.renderMessageImages === "function") {
+        if (typeof props.renderSlot === "function") {
           try {
-            return props.renderMessageImages({ images: [{ attachment: a.block.attachment }], align: "end", compact: compact, key: "i" + i });
-          } catch (err) { /* 回退到占位 */ }
+            return React.createElement(React.Fragment, { key: "i" + i }, props.renderSlot("conversation.chat.user.images", {
+              images: [{ attachment: a.block.attachment }], loadImage: props.loadImage, align: "end", compact: compact
+            }));
+          } catch (err) { /* 可选图片席位不可用时仍保留正文与附件占位 */ }
         }
-        return React.createElement("span", { className: "cJsG2q_fileMeta dsh-he-fileMeta", key: "i" + i }, "[图片]");
+        return React.createElement("span", { className: "dsh-he-fileMeta", key: "i" + i }, "[图片]");
       });
-      return React.createElement("div", { className: "cJsG2q_attachmentRow dsh-he-attach", "data-dsh-he": "attachments" }, cells);
+      return React.createElement("div", { className: "dsh-he-attach", "data-dsh-he": "attachments" }, cells);
     }
     function clockText(time) {
       if (!time) return "";
@@ -417,11 +419,11 @@ window.__ModuleLoader__.load({
       return sameDay ? hm : (d.getMonth() + 1) + "月" + d.getDate() + "日 " + hm;
     }
     function iconButton(label, Icon, onClick, extra) {
-      // data-dsh-he 供真实界面核对与测试定位；同时挂载原生与插件专属类名。
+      // data-dsh-he 供真实界面核对与测试定位；仅挂载插件稳定类名。
       var attrs = { "data-dsh-he": (extra && extra.marker) || "action" };
       if (extra && extra.attrs) Object.assign(attrs, extra.attrs);
       var button = React.createElement("button", Object.assign({
-        type: "button", className: "xD_KDq_action dsh-he-action", "aria-label": label,
+        type: "button", className: "dsh-he-action", "aria-label": label,
         title: Tooltip ? undefined : label,
         disabled: extra && extra.disabled ? true : undefined, onClick: onClick
       }, attrs), React.createElement(Icon, {}));
@@ -551,7 +553,25 @@ window.__ModuleLoader__.load({
       }
 
       var parts = contentParts(data.content);
-      var attachments = attachmentsOf(data, props);
+      // Body, attachments and reference summary are rendered by the host
+      // user.content factory (visually identical to the native bubble). This
+      // component only adds the action row and the edit / confirm chrome, so it
+      // never needs to declare a host-owned child slot.
+      var hostContent = null;
+      try {
+        if (typeof props.renderFactorySlot === "function") {
+          var hostAtt = parts.attachments.map(function (a) {
+            return a.type === "file"
+              ? { type: "file", file: a.block.attachment }
+              : { type: "image", image: { attachment: a.block.attachment } };
+          });
+          hostContent = props.renderFactorySlot("conversation.chat.user.content", {
+            content: { text: text, attachments: hostAtt, extraBlocks: parts.rest, referenceLabels: data.referenceLabels || [] },
+            loadImage: props.loadImage, facts: {}, interactive: true
+          });
+        }
+      } catch (err) { hostContent = null; }
+      var attachments = hostContent ? null : attachmentsOf(data, props);
       var rows = Math.min(12, Math.max(2, draft.split("\n").length));
       var locked = !canEdit;
       var lockReason = row ? (row.reason || "这条消息已被折叠或替换，只读显示保存后的文字")
@@ -561,7 +581,8 @@ window.__ModuleLoader__.load({
         : (seq === null ? "这条消息的位置尚未同步，请稍候或刷新页面" : "这条消息不可删除");
 
       var stack = [];
-      if (attachments) stack.push(attachments);
+      if (hostContent) stack.push(React.createElement("div", { key: "hc", className: "dsh-he-contentHost", "data-dsh-he": "hostContent" }, hostContent));
+      else if (attachments) stack.push(attachments);
       if (editing) {
         stack.push(React.createElement("div", { className: "dsh-he-edit", "data-dsh-he": "editor", key: "ed" }, [
           React.createElement("textarea", {
@@ -609,21 +630,21 @@ window.__ModuleLoader__.load({
             ])
           ]));
         }
-        if (text !== "" || parts.rest.length) {
+        if (!hostContent && (text !== "" || parts.rest.length)) {
           stack.push(React.createElement("div", {
-            key: "b", className: "cJsG2q_bubble dsh-he-bubble", "data-dsh-he": "bubble"
+            key: "b", className: "dsh-he-bubble", "data-dsh-he": "bubble"
           }, [
             project(text, data, props),
             parts.rest.map(function (block, i) {
               return JsonBlock
                 ? React.createElement(JsonBlock, { key: "r" + i, label: "非文本内容", payload: block })
-                : React.createElement("span", { key: "r" + i, className: "cJsG2q_fileMeta dsh-he-fileMeta" }, "[非文本内容]");
+                : React.createElement("span", { key: "r" + i, className: "dsh-he-fileMeta" }, "[非文本内容]");
             })
           ]));
         }
-        if (data.referenceLabels && data.referenceLabels.length > 0) {
+        if (!hostContent && data.referenceLabels && data.referenceLabels.length > 0) {
           stack.push(React.createElement("div", {
-            key: "ref", className: "cJsG2q_referenceSummary dsh-he-refSummary", "data-dsh-he": "referenceSummary"
+            key: "ref", className: "dsh-he-refSummary", "data-dsh-he": "referenceSummary"
           }, data.referenceLabels.join(" · ")));
         }
         if (error) stack.push(React.createElement("p", { key: "e", className: "dsh-he-error", "data-dsh-he": "error", role: "alert" }, error));
@@ -633,11 +654,11 @@ window.__ModuleLoader__.load({
       }, "只读：" + (row.reason || "这条消息不在当前有效上下文中")));
 
       var actions = React.createElement("div", {
-        className: "xD_KDq_actions dsh-he-actionRow",
+        className: "dsh-he-actionRow",
         "data-dsh-he": "actions",
         "data-clock": "start"
       }, [
-        React.createElement("span", { className: "xD_KDq_timeStart dsh-he-time", key: "t" }, recalling && phase ? phase : clockText(data.time)),
+        React.createElement("span", { className: "dsh-he-time", key: "t" }, recalling && phase ? phase : clockText(data.time)),
         iconButton(copied ? "已复制" : "复制", copied ? IconCheck : IconCopy, copy, { marker: "copy", disabled: copying }),
         iconButton(recalling ? "正在撤回…" : "撤回", IconRecall, recall, { marker: "recall", disabled: locked || saving || editing || recalling || deleting }),
         iconButton(canDelete ? "删除这条消息" : deleteReason, IconTrash, function () {
@@ -649,11 +670,11 @@ window.__ModuleLoader__.load({
 
       if (gone) return null;
       return React.createElement("div", {
-        className: "cJsG2q_userRow dsh-he-row",
+        className: "dsh-he-row",
         "data-dsh-he": "row",
         tabIndex: -1
       }, [
-        React.createElement("div", { className: "cJsG2q_userStack dsh-he-stack", key: "s" }, stack),
+        React.createElement("div", { className: "dsh-he-stack", key: "s" }, stack),
         actions
       ]);
     }
@@ -661,33 +682,28 @@ window.__ModuleLoader__.load({
     /* ---------- 样式：沿用 native 的视觉 token 与取色，深/浅主题自适应 ---------- */
 
     var CSS =
-      ".cJsG2q_userRow,.dsh-he-row{flex-direction:column;align-items:flex-end;gap:6px;display:flex;position:relative}" +
-      ".cJsG2q_userStack,.dsh-he-stack{min-width:0;max-width:min(calc(var(--dsh-chat-content-width,748px) * .702), 82%);flex-direction:column;align-items:flex-end;gap:8px;display:flex}" +
-      ".cJsG2q_bubble,.dsh-he-bubble{background:var(--dsw-specific-bubble);border-radius:var(--dsw-radius-xl);max-width:100%;font-size:var(--dsh-content-font-size,14px);line-height:calc(22px + var(--dsh-content-font-delta,0px));color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word;padding:10px 16px;cursor:text;user-select:text;box-sizing:border-box}" +
-      ".cJsG2q_attachmentRow,.dsh-he-attach{flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:100%;display:flex}" +
-      ".cJsG2q_referenceSummary,.dsh-he-refSummary{color:var(--dsw-alias-label-tertiary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(18px + var(--dsh-content-font-delta-secondary,0px))}" +
-      ".cJsG2q_fileCard,.dsh-he-file{border:.5px solid var(--dsw-alias-border-l2,rgba(0,0,0,.12));border-radius:var(--dsw-radius-xl);background:var(--dsw-specific-input-major,transparent);box-sizing:border-box;flex:0 0 240px;align-items:center;gap:10px;width:240px;min-height:64px;padding:8px 12px;display:inline-flex}" +
-      ".cJsG2q_fileIcon,.dsh-he-fileIcon{flex:none;width:28px;height:28px}.cJsG2q_fileContent,.dsh-he-fileBody{flex-direction:column;flex:1;min-width:0;display:flex}" +
-      ".cJsG2q_fileName,.dsh-he-fileName{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--dsw-alias-label-primary);font-size:14px;font-weight:500;line-height:22px}" +
-      ".cJsG2q_fileMeta,.dsh-he-fileMeta{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:15px}" +
-      ".xD_KDq_actions,.dsh-he-actionRow{height:calc(28px + var(--dsh-content-font-delta,0px));align-items:center;gap:8px;display:flex}" +
-      ".xD_KDq_timeStart,.dsh-he-time{font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(24px + var(--dsh-content-font-delta,0px));color:var(--dsw-alias-label-tertiary);white-space:nowrap;padding-right:12px}" +
-      ".xD_KDq_action,.dsh-he-action{width:calc(28px + var(--dsh-content-font-delta,0px));height:calc(28px + var(--dsh-content-font-delta,0px));color:var(--dsw-alias-label-tertiary);cursor:pointer;background:transparent;border:none;border-radius:var(--dsw-radius-sm);justify-content:center;align-items:center;padding:6px;box-sizing:border-box;display:inline-flex;transition:background 120ms ease,color 120ms ease}" +
-      ".xD_KDq_action svg,.dsh-he-action svg{width:calc(15px + var(--dsh-content-font-delta,0px));height:calc(15px + var(--dsh-content-font-delta,0px));flex:none}" +
-      ".xD_KDq_action:hover:not(:disabled),.dsh-he-action:hover:not(:disabled){color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover)}" +
-      ".xD_KDq_action:disabled,.dsh-he-action:disabled{opacity:.4;cursor:not-allowed}" +
-      ".xD_KDq_action:disabled:hover,.dsh-he-action:disabled:hover{background:transparent;color:var(--dsw-alias-label-tertiary)}" +
+      ".dsh-he-row{flex-direction:column;align-items:flex-end;gap:6px;display:flex;position:relative}" +
+      ".dsh-he-stack{min-width:0;max-width:min(calc(var(--dsh-chat-content-width,748px) * .702), 82%);flex-direction:column;align-items:flex-end;gap:8px;display:flex}" +
+      ".dsh-he-bubble{background:var(--dsw-specific-bubble);border-radius:var(--dsw-radius-xl);max-width:100%;font-size:var(--dsh-content-font-size,14px);line-height:calc(22px + var(--dsh-content-font-delta,0px));color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word;padding:10px 16px;cursor:text;user-select:text;box-sizing:border-box}" +
+      ".dsh-he-attach{flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:100%;display:flex}" +
+      ".dsh-he-refSummary{color:var(--dsw-alias-label-tertiary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(18px + var(--dsh-content-font-delta-secondary,0px))}" +
+      ".dsh-he-file{border:.5px solid var(--dsw-alias-border-l2,rgba(0,0,0,.12));border-radius:var(--dsw-radius-xl);background:var(--dsw-specific-input-major,transparent);box-sizing:border-box;flex:0 0 240px;align-items:center;gap:10px;width:240px;min-height:64px;padding:8px 12px;display:inline-flex}" +
+      ".dsh-he-fileIcon{flex:none;width:28px;height:28px}.dsh-he-fileBody{flex-direction:column;flex:1;min-width:0;display:flex}" +
+      ".dsh-he-fileName{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--dsw-alias-label-primary);font-size:14px;font-weight:500;line-height:22px}" +
+      ".dsh-he-fileMeta{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:15px}" +
+      ".dsh-he-actionRow{height:calc(28px + var(--dsh-content-font-delta,0px));align-items:center;gap:8px;display:flex}" +
+      ".dsh-he-time{font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(24px + var(--dsh-content-font-delta,0px));color:var(--dsw-alias-label-tertiary);white-space:nowrap;padding-right:12px}" +
+      ".dsh-he-action{width:calc(28px + var(--dsh-content-font-delta,0px));height:calc(28px + var(--dsh-content-font-delta,0px));color:var(--dsw-alias-label-tertiary);cursor:pointer;background:transparent;border:none;border-radius:var(--dsw-radius-sm);justify-content:center;align-items:center;padding:6px;box-sizing:border-box;display:inline-flex;transition:background 120ms ease,color 120ms ease}" +
+      ".dsh-he-action svg{width:calc(15px + var(--dsh-content-font-delta,0px));height:calc(15px + var(--dsh-content-font-delta,0px));flex:none}" +
+      ".dsh-he-action:hover:not(:disabled){color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover)}" +
+      ".dsh-he-action:disabled{opacity:.4;cursor:not-allowed}" +
+      ".dsh-he-action:disabled:hover{background:transparent;color:var(--dsw-alias-label-tertiary)}" +
       "@media (hover:hover){" +
         // 只在用户气泡内隐藏操作行。这条规则若写成全局选择器，会连带压住宿主原生
         // 助手按钮行（opacity:0 后元素仍在、仍可点，但永远看不见，且没有规则能恢复它）。
-        ".cJsG2q_userRow .xD_KDq_actions,.cJsG2q_userRow .dsh-he-actionRow{opacity:0;transition:opacity 80ms ease}" +
-        ".cJsG2q_userRow:hover .xD_KDq_actions,.cJsG2q_userRow:focus-within .xD_KDq_actions," +
-        ".cJsG2q_userRow:hover .dsh-he-actionRow,.cJsG2q_userRow:focus-within .dsh-he-actionRow," +
-        ".dsh-he-row:hover .xD_KDq_actions,.dsh-he-row:focus-within .xD_KDq_actions," +
+        ".dsh-he-row .dsh-he-actionRow{opacity:0;transition:opacity 80ms ease}" +
         ".dsh-he-row:hover .dsh-he-actionRow,.dsh-he-row:focus-within .dsh-he-actionRow," +
-        ":is([data-chat-flow-kind=user],[data-chat-flow-kind=steering]):hover .xD_KDq_actions," +
         ":is([data-chat-flow-kind=user],[data-chat-flow-kind=steering]):hover .dsh-he-actionRow," +
-        ":is([data-chat-flow-kind=user],[data-chat-flow-kind=steering]):focus-within .xD_KDq_actions," +
         ":is([data-chat-flow-kind=user],[data-chat-flow-kind=steering]):focus-within .dsh-he-actionRow{opacity:1}" +
       "}" +
       ".dsh-he-edit{width:min(calc(var(--dsh-chat-content-width,748px) * .702), 82%);flex-direction:column;gap:8px;display:flex}" +
@@ -703,7 +719,8 @@ window.__ModuleLoader__.load({
       ".dsh-he-confirmText{margin:0;font-size:13px;line-height:18px;color:var(--dsw-alias-label-secondary)}" +
       ".dsh-he-btn.is-danger{background:var(--dsw-alias-state-error-primary,#e5484d);border-color:transparent;color:#fff}" +
       ".dsh-he-btn.is-danger:hover:not(:disabled){opacity:.9}" +
-      ".xD_KDq_action:focus-visible,.dsh-he-action:focus-visible,.dsh-he-btn:focus-visible{outline:1.5px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}";
+      ".dsh-he-action:focus-visible,.dsh-he-btn:focus-visible{outline:1.5px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}" +
+      ".dsh-he-contentHost{max-width:100%;min-width:0;display:flex;flex-direction:column;align-items:flex-end;gap:8px}";
 
     function apply(ctx) {
       HOST.ctx = ctx;
@@ -731,25 +748,17 @@ window.__ModuleLoader__.load({
 
       /** 注册到用户气泡的 keyed 席位；旧插件同款模式。若该 (key, priority) 已被占用则降一级再试。 */
       effect(function () {
-        function mount(priority) {
-          return ctx.slots.inject("conversation.chat.node", function () {
-            return ctx.slots.register({
-              name: "conversation.chat.node", key: "user", priority: priority,
-              inject: function (sessionId) { return { sessionId: sessionId }; }
-            }, UserBubbleEdit);
-          });
-        }
-        var d = null;
-        try { d = mount(-1); }
-        catch (err) {
-          try { d = mount(-2); }
-          catch (err2) { d = null; console.warn("[dsh-history-editor] 用户气泡席位注册失败：", err2); }
-        }
-        // slots.inject 已随 ctx 生命周期回收；这里只做兜底，重复调用是幂等的。
-        return function () {
-          HOST.ctx = null;
-          if (typeof d === "function") { try { d(); } catch (err) { /* ignore */ } }
-        };
+        // rc.3: conversation.chat.user.images is declared by the host's own
+        // conversation.chat.user.content factory. Declaring it here again makes
+        // SlotCore throw "already declared" and the whole user seat stops
+        // rendering (no UI). Register the keyed user seat only, declare no child,
+        // and stop swallowing activation errors.
+        return ctx.slots.inject("conversation.chat.node", function () {
+          return ctx.slots.register({
+            name: "conversation.chat.node", key: "user",
+            inject: function (sessionId) { return { sessionId: sessionId }; }
+          }, UserBubbleEdit);
+        });
       }, "dsh-history-editor: user bubble seat");
 
       return function () { /* 生命周期归 ctx.effect；返回值保留仅为兼容旧 Host 约定 */ };

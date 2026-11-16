@@ -1,5 +1,23 @@
 # DSH 用户消息历史编辑与删除
 
+## 0.4.3：修复 rc.3 下用户气泡 UI 完全不显示
+
+0.4.2 在 DSH 0.2.2-rc.3 上整块用户席位不渲染。根因：rc.3 的宿主已在它自己的 `conversation.chat.user.content` 工厂里声明了子槽 `conversation.chat.user.images`；0.4.2 又在 `key="user"` 的 `conversation.chat.node` 注册上重复声明同一子槽。SlotCore 的唯一声明规则当场抛 `slot "conversation.chat.user.images" is already declared`，激活失败，而旧代码把这个异常吞进 `try/catch`，于是「一个按钮都没有」，而不是报错。
+
+0.4.3 的改动：用户席位注册**不再声明任何子槽**；激活期不再吞异常；正文/附件/引用改为调用宿主 `renderFactorySlot("conversation.chat.user.content", …)` 渲染（与原生气泡完全一致），插件只补「复制 / 撤回 / 删除 / 编辑」动作行与编辑/确认壳。图片因此仍由宿主 `conversation.chat.user.images` 正常显示，不会重复声明。`test/client.test.mjs` 增加两条回归：席位不得带子槽、以及在「重复声明即抛错」的宿主校验下 `apply` 仍能成功注册。
+
+本版本只改插件前端 `client.js`（profile 走 `link:F:/SPACE/dsh-history-editor`，没有镜像副本），不触碰 app.asar、真实会话或宿主补丁。改动后需要**重载插件**（或硬刷新页面）让浏览器重新拉 `client.js`；后端宿主补丁与 0.4.2 相同，无需重新部署。
+
+## 0.4.2：兼容 DSH 0.2.2-rc.3
+
+保留 0.4.1 的独立 `Session.create()` 启动探针，不向只读 `sessions.prepare()` append，也不发布真实 Store 事件。前端去掉宿主构建哈希类名，使用插件稳定 CSS；~~图片按 rc.3 的 `conversation.chat.user.images` 子 slot 渲染并传递 `loadImage`~~（该做法即在 rc.3 上导致整块 UI 消失，0.4.3 已撤销，改为透传宿主 `user.content` 工厂）。
+
+删除补丁现只修改当前版两个等长 entry：严格格式校验器和 Session 能力 gate。仅放行无打开 step、指向单条人类用户消息的空删除载体；普通 append、助手目标、受保护系统头和畸形替换仍拒绝。两份 entry 缺任一份都不会开放插件删除。聊天投影与 TokenMeter 已原生支持 replacement，不重复打补丁。
+
+这次仓库修复没有修改实际安装包、真实 session 或配置；宿主 entry 的统一部署与 ASAR header SHA 更新由集成方执行。不得使用旧版整体补丁。详见 [部署说明](host-patch/CURRENT.md) 与 [验证记录](VERIFICATION.md)。
+
+升级回归需把 `DSH_HISTORY_EDITOR_HOST_NODE_MODULES` 指向当前安装包的完整提取目录，再运行 `npm test`；补丁叠加测试运行 `node --import ./test/patched-host-loader.mjs --test test/*.test.mjs`（Node 24，内存覆盖，不修改宿主副本）。
+
 在用户气泡原位编辑或删除已经发过的消息，后续消息保留，不新建分支、不自动重发。
 
 - **只作用于用户消息**：编辑文字、删除、撤回、复制。
@@ -17,21 +35,11 @@
 
 ## 宿主补丁
 
-只有**删除**需要宿主补丁（`host-patch/`，放宽 surface replace 的 turn/step 校验）。编辑、复制、撤回不需要。
+只有**删除**需要 [当前版补丁](host-patch/CURRENT.md)。编辑、复制、撤回不需要。未安装时删除被明确拒绝且零写入，插件仍会启动。
 
-未安装补丁时：编辑/复制/撤回照常工作，删除请求会被明确拒绝并给出原因，不会写入任何内容。插件本身不会因为缺补丁而无法启动。
+运行 `node host-patch/build-current.mjs NODE_MODULES OUTPUT_DIR` 可生成当前版两个等长 entry 和逐 entry 原/新 SHA256。源 entry 哈希或唯一 anchor 不匹配立即拒绝。默认输出在 `host-patch/current/`。
 
-补丁绑定当前安装版本（构建时已记录原始 SHA256）：
-
-1. 完全退出 DSH。
-2. 双击 host-patch/Install.cmd（或运行 Apply-Patch.ps1 -Mode Install -AcknowledgeHistoryDependency）。
-3. 启动 DSH，硬刷新 Web GUI。
-
-脚本行为：先校验当前 app.asar 哈希与本机版本一致，把原文件备份为 app.asar.history-editor-backup，再原子替换；不一致直接拒绝，不覆盖。
-
-- 只读检查：Apply-Patch.ps1 -Mode Verify
-- 还原官方文件：Apply-Patch.ps1 -Mode Rollback -AcknowledgeHistoryDependency
-- 脚本不会替你关闭或启动 DSH。
+`host-patch/app.asar`、根 manifest 和旧 files 都是 **0.2.1-rc.2 旧产物**，不得用于 rc.3；旧 `Apply-Patch.ps1` 的 Verify/Install 已禁用，仅保留旧版本的 Rollback 分支。当前补丁不整体替换 archive；集成部署必须先备份 archive、校验 entry，再同步写 entry bytes 和 header integrity，并验证回读。部署与回滚步骤见当前版说明。仓库脚本不关闭或启动 DSH。
 
 ### 风险
 
@@ -49,13 +57,13 @@
 - 先编辑再删除的消息不会因 saved fallback 复活。
 - 前端按稳定 message id 映射修订，不用 React 内部字段猜消息身份。
 
-验证结果（本机实测）：
+验证结果（2026-11-15，rc.3 完整提取宿主）：
 
-- 插件回归 45 项全通过（npm test），语法检查通过（npm run check）。
-- 真实宿主 format-v4 编码器 + restore 往返通过；真实 token-meter 服务确认用户改写更新上下文且**不重复计费**。
-- 助手回复的边界有测试盯着：不在 list 里、不可编辑、不可删除、不可撤回，任何尝试都不写入日志。
-- 独立删除探针（严格 turn、编辑后删除、序列化重放）通过。
+- 原版与完整补丁覆盖各 53 项通过，0 失败、0 跳过；Session-only / Format-only 各 4 项通过，gate 均关闭。
+- 真实 format-v4 严格 restore 验证重复编辑、删除、无系统头删除、助手原文不变；畸形载体、未知 step、助手目标、系统头与普通乱序 append 都被拒。
+- 真实 TokenMeter 验证用户改写/删除更新有效上下文，且不重复计入模型请求费用。
+- 客户端替身验证图片子 slot / loadImage / 附件与稳定 CSS；只注册 user 席位。
 
-未做：浏览器实机点击验收（浏览器自动化扩展未连接）；GUI 侧请在安装补丁后自行确认一次。
+未做：实际安装包部署、真实 flush 端到端与浏览器点击验收；不能把替身/codec 测试当作 GUI 实机结果。
 
 升级宿主后需要复核接口适配。

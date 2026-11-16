@@ -15,7 +15,6 @@ function candidates() {
   // 已知的本机提取副本（仅作便利候选，不存在即跳过）。
   list.push(
     'F:/EXE/DeepSeek/resources/app.asar.unpacked/dsh/node_modules',
-    '.scratch/app-asar-work/dsh/node_modules',
   );
   return list;
 }
@@ -38,8 +37,11 @@ export async function loadHost() {
   return {
     root,
     Session: (await import(toUrl(SESSION_REL))).Session,
+    SessionStore: (await import(toUrl(SESSION_REL))).SessionStore,
     catalog: (await import(toUrl(CATALOG_REL))).sessionFormatCatalog,
     TokenMeter: (await import(toUrl('@deepseek-ai/dsh-token-meter/lib/index.js'))).TokenMeter,
     Context: (await import(toUrl('@deepseek-ai/cordis/lib/index.js'))).Context,
+    Service: (await import(toUrl('@deepseek-ai/cordis/lib/index.js'))).Service,
+    SessionProjectionRegistry: (await import(toUrl('@deepseek-ai/dsh-session-projection/lib/index.js'))).SessionProjectionRegistry,
   };
 }

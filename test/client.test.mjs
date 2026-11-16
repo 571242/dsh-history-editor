@@ -167,6 +167,72 @@ const ONE = [{ id: 'u1', seq: 0, role: 'user', text: '原文', editable: true, r
 
 /* ---------------- 测试 ---------------- */
 
+test('rc.3 正文/图片交给宿主 user.content 工厂；用户席位不再重复声明子槽', async () => {
+  assert.doesNotMatch(SRC, /cJsG2q_|xD_KDq_|LOmM4q_|_1KfHza_/);
+  const { registered, mountWith } = boot();
+  // 关键回归（0.4.2 无 UI 根因）：rc.3 宿主已在 conversation.chat.user.content 工厂里
+  // 声明 conversation.chat.user.images；本插件若再声明，SlotCore 会以
+  // "slot ...user.images is already declared" 中止激活，用户席位整个不渲染。
+  assert.equal(registered[0].options.children, undefined, '用户席位不得声明任何子槽');
+  const calls = [], loadImage = () => 'test-url';
+  const node = nodeOf('image', 1, 'caption');
+  const attachment = { name: 'photo.png', bytes: 10, hash: 'test' };
+  node.data.content.push({ type: 'image', attachment }, { type: 'file', attachment: { name: 'notes.txt', bytes: 4 } });
+  const inst = mountWith(registered[0].component, {
+    sessionId: 'images', node, loadImage,
+    renderFactorySlot(name, props) { calls.push({ name, props }); return 'host-rendered-body'; },
+  });
+  assert.equal(calls[0].name, 'conversation.chat.user.content');
+  assert.deepEqual(calls[0].props.content.attachments, [
+    { type: 'image', image: { attachment } },
+    { type: 'file', file: { name: 'notes.txt', bytes: 4 } },
+  ]);
+  assert.equal(calls[0].props.content.text, 'caption');
+  assert.equal(calls[0].props.loadImage, loadImage);
+  assert.equal(calls[0].props.interactive, true);
+  assert.match(textOf(find(inst.tree, 'hostContent')), /host-rendered-body/);
+});
+
+test('重复声明宿主子槽会被 rc.3 拒绝；修复后 apply 仍成功注册用户席位', () => {
+  // 模拟 rc.3 SlotCore 的唯一声明规则：某子槽已被宿主声明，再次声明即抛错。
+  const HOST_DECLARED = 'conversation.chat.user.images';
+  let captured = null;
+  const ReactStub = {};
+  createMiniReact(ReactStub);
+  const windowObj = {
+    __ModuleLoader__: { load: (def) => { captured = def; } },
+    __DSH_HISTORY_EDITOR_CFG__: { readyTimeoutMs: 300, readyPollMs: 20, prefillTimeoutMs: 300 },
+    setTimeout, clearTimeout,
+  };
+  const documentObj = { head: { appendChild() {}, removeChild() {} }, createElement: () => ({ setAttribute() {}, style: {}, textContent: '' }) };
+  const requireStub = (name) => { if (name === 'react') return ReactStub; throw new Error('primitives unavailable'); };
+  const fn = new Function('window', 'document', 'console', 'setTimeout', 'clearTimeout', 'fetch', 'require', SRC);
+  fn(windowObj, documentObj, console, setTimeout, clearTimeout, () => Promise.reject(new Error('no fetch')), requireStub);
+  const mod = captured.factory(requireStub);
+  const registered = [];
+  const assertNoDup = (options) => {
+    for (const key of Object.keys(options.children || {})) {
+      if (key === HOST_DECLARED) throw new Error('slot "' + key + '" is already declared (by factory "conversation.chat.user.content")');
+    }
+  };
+  const ctx = {
+    effect: (f) => f(),
+    on() {},
+    get() { return null; },
+    slots: {
+      inject(_key, cb) { return cb(); },
+      register(options, component) { assertNoDup(options); registered.push({ options, component }); return () => {}; },
+      registerFactory(options) { assertNoDup(options); return () => {}; },
+    },
+  };
+  // 旧 0.4.2 会在这里抛 already declared；修复后必须顺利注册。
+  assert.doesNotThrow(() => mod.apply(ctx));
+  assert.equal(registered.length, 1);
+  assert.equal(registered[0].options.name, 'conversation.chat.node');
+  assert.equal(registered[0].options.key, 'user');
+  assert.equal(registered[0].options.children, undefined);
+});
+
 test('只注册用户气泡席位：助手侧席位已移除', () => {
   const { registered, effects } = boot();
   assert.equal(registered.length, 1, '只保留用户席位');
@@ -512,7 +578,7 @@ test('撤回失败时提示原因且不切会话', async () => {
   assert.match(textOf(find(inst.tree, 'error')), /没有完整回合/);
 });
 
-test('气泡为原生正常交互：不劫持点击复制，携带原生类名，操作栏提供复制/撤回/编辑三键', async () => {
+test('气泡保持正常交互：不劫持点击复制，稳定类名不随宿主构建漂移', async () => {
   const { registered, mountWith } = boot({ fetchImpl: okGet(ONE) });
   const Comp = registered[0].component;
   const inst = mountWith(Comp, { sessionId: 's1', node: nodeOf('u1', 0, '正常的文字'), renderMessageImages: null });
@@ -522,22 +588,22 @@ test('气泡为原生正常交互：不劫持点击复制，携带原生类名�
   assert.ok(bubble, '存在气泡');
   assert.equal(bubble.props.onClick, undefined, '普通气泡绝不劫持整块点击复制');
   assert.equal(bubble.props.title, undefined, '普通气泡绝不展示复制提示');
-  assert.match(bubble.props.className, /cJsG2q_bubble/, '包含原生 bubble 类名');
+  assert.match(bubble.props.className, /dsh-he-bubble/, '包含插件稳定 bubble 类名');
 
   const row = find(inst.tree, 'row');
-  assert.match(row.props.className, /cJsG2q_userRow/, '外层挂载原生 userRow 类名');
+  assert.match(row.props.className, /dsh-he-row/, '外层挂载插件稳定 row 类名');
 
   const actions = find(inst.tree, 'actions');
   assert.ok(actions, '存在操作栏');
-  assert.match(actions.props.className, /xD_KDq_actions/, '操作栏挂载原生 actions 类名');
+  assert.match(actions.props.className, /dsh-he-actionRow/, '操作栏挂载插件稳定 actionRow 类名');
 
   const copyBtn = find(inst.tree, 'copy');
   const recallBtn = find(inst.tree, 'recall');
   const editBtn = find(inst.tree, 'edit');
   assert.ok(copyBtn && recallBtn && editBtn, '复制、撤回、编辑三键齐全');
-  assert.match(copyBtn.props.className, /xD_KDq_action/, '复制小按键拥有原生 action 类名');
-  assert.match(recallBtn.props.className, /xD_KDq_action/, '撤回小按键拥有原生 action 类名');
-  assert.match(editBtn.props.className, /xD_KDq_action/, '编辑小按键拥有原生 action 类名');
+  assert.match(copyBtn.props.className, /dsh-he-action/, '复制小按键拥有插件稳定 action 类名');
+  assert.match(recallBtn.props.className, /dsh-he-action/, '撤回小按键拥有插件稳定 action 类名');
+  assert.match(editBtn.props.className, /dsh-he-action/, '编辑小按键拥有插件稳定 action 类名');
 });
 
 test('编辑输入框快捷键：Esc 取消，Ctrl+Enter 保存', async () => {
@@ -671,12 +737,12 @@ test('CSS 回归：隐藏操作行的规则必须限定在用户气泡内', () =
 
   // 所有把操作行设为 opacity:0 的规则，必须逐条限定在用户气泡内。
   const rules = css.match(/[^{}]*\{[^{}]*opacity:0[^{}]*\}/g) || [];
-  const hiders = rules.filter(rule => /\.xD_KDq_actions|\.dsh-he-actionRow/.test(rule.split('{')[0]));
+  const hiders = rules.filter(rule => /\.dsh-he-actionRow/.test(rule.split('{')[0]));
   assert.ok(hiders.length > 0, '用户气泡仍应有 hover 显隐规则');
   for (const rule of hiders) {
     for (const sel of rule.split('{')[0].split(',').map(s => s.trim())) {
-      if (!/\.xD_KDq_actions|\.dsh-he-actionRow/.test(sel)) continue;
-      assert.match(sel, /\.cJsG2q_userRow|\.dsh-he-row/,
+      if (!/\.dsh-he-actionRow/.test(sel)) continue;
+      assert.match(sel, /\.dsh-he-row/,
         '隐藏操作行的选择器必须限定在用户气泡内，否则会连带压住宿主原生的助手按钮行：' + sel);
     }
   }

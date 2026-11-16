@@ -1,6 +1,6 @@
 {
   "name": "dsh-history-editor",
-  "version": "0.4.0",
+  "version": "0.4.3",
   "description": "In-session history editing and deletion for DSH user messages; assistant replies are left untouched and rendered by the host.",
   "type": "module",
   "main": "index.js",
@@ -10,5 +10,5 @@
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": { "inject": ["@deepseek-ai/dsh-client-ui-session", "@deepseek-ai/dsh-client-ui-workspace", "@deepseek-ai/dsh-client-ui-conversation"], "platform": "web" }
   },
-  "scripts": { "test": "node --test test/*.test.mjs", "check": "node --check index.js && node --check core.js && node --check client.js" }
+  "scripts": { "test": "node --test test/*.test.mjs", "check": "node --check index.js && node --check core.js && node --check client.js && node --check verify-runtime.js" }
 }

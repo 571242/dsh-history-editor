@@ -5,7 +5,11 @@ import { createHistoryApi } from './core.js';
 export async function verifyRuntime(ctx) {
   const source = { kind: 'user' };
   const modelSource = { kind: 'model', provider: 'runtime-check', model: 'runtime-check' };
-  const session = ctx.sessions.prepare(undefined, { meta: { cwd: process.cwd() } });
+  // prepare() now returns a store-owned, read-only session; static snapshots stay detached.
+  const prepared = ctx.sessions.prepare(undefined, { meta: { cwd: process.cwd() } });
+  const Session = prepared.constructor;
+  const projections = ctx.sessions.messageProjections;
+  const session = Session.create(prepared.id, undefined, prepared.header, undefined, projections);
   session.append('user/message', { id: 'probe-first', role: 'user', content: [{ type: 'text', text: 'old' }], source }, { surfaceOp: 'append' });
   session.append('turn/start', { turn: 1 });
   session.append('step/start', { turn: 1, step: 1 });
@@ -26,7 +30,7 @@ export async function verifyRuntime(ctx) {
   const afterEdit = session.deriveMessages().map(message => message.content[0].text);
   // 助手回复必须始终不出现在可编辑/可删除范围内（本插件的功能边界）。
   const assistantRows = api.list('probe').messages.filter(message => message.role === 'assistant');
-  const replay = ctx.sessions.prepare(undefined, { seed: JSON.parse(JSON.stringify(session.snapshotEvents())), meta: { cwd: process.cwd() } });
+  const replay = Session.create(session.id, JSON.parse(JSON.stringify(session.snapshotEvents())), session.header, session.inheritedEventCount, projections);
   const restored = replay.deriveMessages().map(message => message.content[0].text);
   const ok = JSON.stringify(afterEdit) === JSON.stringify(['edited again', 'answer', 'later'])
     && assistantRows.length === 0

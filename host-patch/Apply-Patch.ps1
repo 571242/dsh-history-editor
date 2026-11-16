@@ -3,6 +3,9 @@ param(
   [switch]$AcknowledgeHistoryDependency
 )
 $ErrorActionPreference = 'Stop'
+if ($Mode -ne 'Rollback') {
+  throw 'LEGACY 0.2.1-rc.2 archive installer disabled. Do not deploy host-patch/app.asar to rc.3. Use build-current.mjs and current/manifest.json; see CURRENT.md for entry-span deployment.'
+}
 $manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'manifest.json') -Raw | ConvertFrom-Json
 $target = [IO.Path]::GetFullPath($manifest.target)
 if ($target -ne [IO.Path]::GetFullPath('F:/EXE/DeepSeek/resources/app.asar')) { throw 'Unexpected target path.' }
