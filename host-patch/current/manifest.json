@@ -1,0 +1,21 @@
+{
+  "hostVersion": "0.2.2-rc.3",
+  "protocol": 1,
+  "mode": "equal-length-entry-spans",
+  "patches": [
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-session-format-v3-to-v4/lib/index.js",
+      "originalSha256": "da0b0c2e1460316e659f48f4222730962046b3634d1fb634683bb7243a7bba80",
+      "patchedSha256": "04b75910ce0f66da6d17b3738954238d5d00ce0ace1d4e75cc5d04bcd5bcbc5c",
+      "originalBytes": 74275,
+      "patchedBytes": 74275
+    },
+    {
+      "path": "dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js",
+      "originalSha256": "d9911b5e1585bcb142d03ce46eb2990b3fc7c254de5a76d3ffb124bd2469216c",
+      "patchedSha256": "7e90943d37e5f0fe240f310a2f6d9b7b7e9ecc33c2a6c594062c477b2378b99d",
+      "originalBytes": 97640,
+      "patchedBytes": 97640
+    }
+  ]
+}

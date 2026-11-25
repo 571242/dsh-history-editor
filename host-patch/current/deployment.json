@@ -1,0 +1,82 @@
+{
+  "installedAt": "2026-11-15T11:58:55.982Z",
+  "asarPath": "F:/EXE/DeepSeek/resources/app.asar",
+  "backup": "F:/EXE/DeepSeek/resources/app.asar.bak-before-custom-022rc3-fix",
+  "originalSha256": "34ce4fb01caae2114db032d2ab44472e75b0510edc0eaf456affd7040688e932",
+  "deployedSha256": "66fc7b78a044a8811cbe01c0339ae94b39ef36f1543edb124aa56291c8e8f7cc",
+  "archiveBytes": 209021953,
+  "restoreFile": "C:/Users/admin/.dsh/armor-switch-hostclean.json",
+  "restoreBackup": "C:/Users/admin/.dsh/armor-switch-hostclean.json.bak-before-custom-022rc3-fix",
+  "executable": {
+    "locked": false,
+    "exe": "F:\\EXE\\DeepSeek\\DeepSeek Harness.exe",
+    "embeddedAsarIntegrityValidation": false
+  },
+  "restartRequired": true,
+  "pluginVersions": {
+    "historyEditor": "0.4.2",
+    "armorSwitch": "1.2.4"
+  },
+  "entries": [
+    {
+      "path": "/dsh/node_modules/@deepseek-ai/dsh-agent-instructions/lib/index.js",
+      "bytes": 63281,
+      "absoluteOffset": 19122876,
+      "originalSha256": "f65c6fafe7a5b742c107c30dcf868683a60ec373f9833f898f255094eb492898",
+      "patchedSha256": "f65c6fafe7a5b742c107c30dcf868683a60ec373f9833f898f255094eb492898",
+      "integritySlots": [
+        408714,
+        408811
+      ]
+    },
+    {
+      "path": "/dsh/node_modules/@deepseek-ai/dsh-session-format-v3-to-v4/lib/index.js",
+      "bytes": 74275,
+      "absoluteOffset": 111203905,
+      "originalSha256": "da0b0c2e1460316e659f48f4222730962046b3634d1fb634683bb7243a7bba80",
+      "patchedSha256": "04b75910ce0f66da6d17b3738954238d5d00ce0ace1d4e75cc5d04bcd5bcbc5c",
+      "integritySlots": [
+        2155135,
+        2155232
+      ]
+    },
+    {
+      "path": "/dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js",
+      "bytes": 97640,
+      "absoluteOffset": 113960758,
+      "originalSha256": "d9911b5e1585bcb142d03ce46eb2990b3fc7c254de5a76d3ffb124bd2469216c",
+      "patchedSha256": "7e90943d37e5f0fe240f310a2f6d9b7b7e9ecc33c2a6c594062c477b2378b99d",
+      "integritySlots": [
+        2244469,
+        2244566
+      ]
+    },
+    {
+      "path": "/dsh/node_modules/@deepseek-ai/dsh-user-approval/lib/index.js",
+      "bytes": 8979,
+      "absoluteOffset": 122295130,
+      "originalSha256": "952a32829e905e0f4539692678f10b63a89eb645467ffcae490b738c569b8d77",
+      "patchedSha256": "952a32829e905e0f4539692678f10b63a89eb645467ffcae490b738c569b8d77",
+      "integritySlots": [
+        2549384,
+        2549481
+      ]
+    },
+    {
+      "path": "/dsh/node_modules/@deepseek-ai/dsh-user-approval/lib/types/index.js",
+      "bytes": 11084,
+      "absoluteOffset": 122304109,
+      "originalSha256": "2804281d15dc4c76c83c38bb164ca29f46a3d92c0c42d078143531c0d4ba2009",
+      "patchedSha256": "2804281d15dc4c76c83c38bb164ca29f46a3d92c0c42d078143531c0d4ba2009",
+      "integritySlots": [
+        2549656,
+        2549753
+      ]
+    }
+  ],
+  "hostClean": {
+    "patched": 9,
+    "total": 9,
+    "restorable": true
+  }
+}

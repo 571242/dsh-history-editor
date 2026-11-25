@@ -185,11 +185,11 @@ export function createHistoryApi({ sessions, agents, tokenMeter }) {
       }, {
         surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq }, sourceEventSeqs: shadowed,
       });
-      if (!await sessions.flush(session)) throw fail('删除已进入当前上下文，但宿主未确认持久化；请勿重复操作', 500);
+      if (!await sessions.flush(session)) throw new Error('宿主未确认持久化');
       return { ok: true, seq: landed.seq, revision: session.seq, removed: shadowed.length, removedIds };
     } catch (error) {
-      if (landed && !String(error.message).includes('已进入当前上下文')) {
-        throw fail('删除已进入当前上下文，但落盘确认失败；请勿重复操作：' + error.message, 500);
+      if (landed) {
+        throw Object.assign(fail('删除已进入当前上下文，但落盘确认失败；请勿重复操作：' + error.message, 500), { deleteApplied: true });
       }
       throw error;
     } finally { locks.delete(sessionId); }

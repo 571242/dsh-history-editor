@@ -4,3 +4,17 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+*.tgz
+*.bak-*
+*.dpapi
+*.pem
+*.key
+*.pyc
+*.idsig
+backups/
+.studio/
+.agents/
+.claude/
+__pycache__/
+.dsh-ops/
+.idea/

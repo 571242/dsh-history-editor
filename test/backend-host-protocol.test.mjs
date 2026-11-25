@@ -1,5 +1,5 @@
-// 真实宿主协议测试：用提取的真实 format-v4 编码器 + restore 往返，验证 core.js 的
-// 助手替换与（带审计标记的）整轮删除能真正落进历史日志并被宿主无损读回。
+// 真实宿主协议测试：用当前安装版 format-v4 编码器 + restore 验证用户改写与撤回。
+// 删除只在宿主补丁可用时验证成功路径；官方宿主必须零写入拒绝。
 // 没有真实宿主时整体 skip，并给出配置方法；本文件不依赖 .scratch 的具体路径。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,11 +44,28 @@ function encodeAndRestore(catalog, Session, session) {
   return Session.fromRestore('backend-host', artifact.events, artifact.header, artifact.inheritedEventCount ?? 0, undefined);
 }
 
+test('新版撤回：当前修订正文与前置修订经过真实 codec 重放仍保持一致', { skip }, async () => {
+  const session = build(host.Session.create('backend-host', undefined, HDR));
+  const api = apiFor(session);
+  let row = api.list('s').messages.find(message => message.id === 'u1');
+  await api.edit({ sessionId: 's', seq: row.seq, text: 'saved prefix', revision: session.seq });
+  row = api.list('s').messages.find(message => message.id === 'u2');
+  await api.edit({ sessionId: 's', seq: row.seq, text: 'saved draft', revision: session.seq });
+  const before = session.seq;
+  const recall = api.recall({ sessionId: 's', messageId: 'u2' });
+  assert.equal(recall.boundary, 7);
+  assert.equal(recall.text, 'saved draft');
+  assert.deepEqual(recall.edits, [{ id: 'u1', text: 'saved prefix' }]);
+  assert.equal(session.seq, before, '撤回准备不改原会话');
+  const restored = encodeAndRestore(host.catalog, host.Session, session);
+  assert.deepEqual(apiFor(restored).recall({ sessionId: 's', messageId: 'u2' }), recall);
+});
+
 const texts = session => session.deriveMessages().filter(Boolean).map(message => ({
   id: message.id, text: (message.content ?? []).filter(part => part.type === 'text').map(part => part.text).join('\n'),
 }));
 
-test('真实 v4 编码器 + restore：用户改写与删除往返一致', { skip }, async () => {
+test('真实 v4 编码器 + restore：用户改写往返一致；删除按宿主补丁验证', { skip }, async () => {
   const { Session, catalog } = host;
   const session = build(Session.create('backend-host', undefined, HDR));
   const api = apiFor(session);
@@ -73,6 +90,12 @@ test('真实 v4 编码器 + restore：用户改写与删除往返一致', { skip
 
   // 删除用户消息：空 system/message 载体，带审计标记。
   const target = api.list('s').messages.find(message => message.id === 'u2');
+  if (session.historyEditorProtocol !== 1) {
+    const revision = session.seq;
+    await assert.rejects(api.remove({ sessionId: 's', seq: target.seq, revision }), /宿主补丁/);
+    assert.equal(session.seq, revision, '官方宿主拒绝删除时不得写入任何事件');
+    return;
+  }
   const removed = await api.remove({ sessionId: 's', seq: target.seq, revision: session.seq });
   assert.deepEqual(removed.removedIds, ['u2']);
   assert.deepEqual(api.list('s').messages.map(message => message.id), ['u1']);
@@ -90,7 +113,7 @@ test('助手回复永远不会成为改写或删除目标', { skip }, async () =
   const assistant = session.snapshotEvents().find(event => event.type === 'assistant/message');
   const seq = assistant.seq;
   await assert.rejects(api.edit({ sessionId: 's', seq, text: 'rewrite', revision: before }), /仅开放人类用户消息/);
-  await assert.rejects(api.remove({ sessionId: 's', seq, revision: before }), /不可删除/);
+  await assert.rejects(api.remove({ sessionId: 's', seq, revision: before }), session.historyEditorProtocol === 1 ? /不可删除/ : /宿主补丁/);
   assert.equal(session.seq, before, '对助手回复的任何操作都不得追加事件');
   assert.deepEqual(texts(encodeAndRestore(catalog, Session, session)).map(r => r.id), ['sys', 'u1', 'a1', 'a2', 'u2']);
 });
@@ -115,25 +138,34 @@ test('删除载体必须是正坐标：turn/step 0 被编码器拒绝', { skip }
 });
 
 test('真实计价服务：用户改写更新上下文但不重复计费', {skip}, async () => {
-  const definitions=[];const ctx=new host.Context();
-  ctx.provide('sessionProjections',{register:definition=>definitions.push(definition)});
+  const ctx=new host.Context();
+  const projections=new host.SessionProjectionRegistry(ctx);
   const meter=new host.TokenMeter(ctx);
+  if (typeof meter[host.Service.init] === 'function') await meter[host.Service.init]();
   const session=build(host.Session.create('backend-host',undefined,HDR));
   const before=meter.measure(session);
   const api=apiFor(session,meter);
   const row=api.list('s').messages.find(m=>m.id==='u1');
+  const editStart=session.seq;
   await api.edit({sessionId:'s',seq:row.seq,text:'longer replacement text '.repeat(12),revision:session.seq});
   const after=meter.measure(session);
   assert.ok(after.surfaceTokens>before.surfaceTokens);
   const updated=api.list('s').messages.find(m=>m.id==='u1');
-  await api.remove({sessionId:'s',seq:updated.seq,revision:session.seq});
-  assert.ok(meter.measure(session).surfaceTokens<after.surfaceTokens);
-  const usage=definitions.find(d=>d.key==='tokenUsage');
+  if (session.historyEditorProtocol === 1) {
+    await api.remove({sessionId:'s',seq:updated.seq,revision:session.seq});
+    assert.ok(meter.measure(session).surfaceTokens<after.surfaceTokens);
+  } else {
+    const revision = session.seq;
+    await assert.rejects(api.remove({sessionId:'s',seq:updated.seq,revision}), /宿主补丁/);
+    assert.equal(session.seq, revision);
+  }
+  const usage=projections.registrations.get('tokenUsage').def;
   let state=usage.init();
   const first={type:'assistant/message',surfaceOp:'append',data:{turn:1,step:1,usage:{inputTokens:20,outputTokens:4}}};
   const second={type:'assistant/message',surfaceOp:'append',data:{turn:2,step:1,usage:{inputTokens:30,outputTokens:8}}};
   state=usage.apply(state,first);state=usage.apply(state,second);
   const saved=structuredClone(state);
-  state=usage.apply(state,{...first,surfaceOp:{op:'replace',startSeq:1,endSeq:1}});
-  assert.deepEqual(state,saved);
+  for (const event of session.snapshotEvents().slice(editStart)) state=usage.apply(state,event);
+  assert.deepEqual(state,saved, '用户历史修改不重复计入模型请求费用');
+  await ctx.fiber.dispose();
 });

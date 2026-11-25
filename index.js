@@ -26,11 +26,13 @@ function sameOrigin(req) {
 export async function apply(ctx) {
   // Verify on detached test objects before admitting writes to any real Session.
   const reportDir = new URL('./.scratch/', import.meta.url);
-  await mkdir(reportDir, { recursive: true });
   let report;
   try { report = await verifyRuntime(ctx); }
   catch (error) { report = { ok: false, error: error.message }; }
-  await writeFile(new URL('runtime-check.json', reportDir), JSON.stringify(report, null, 2));
+  try {
+    await mkdir(reportDir, { recursive: true });
+    await writeFile(new URL('runtime-check.json', reportDir), JSON.stringify(report, null, 2));
+  } catch { /* Diagnostic output is optional; the compatibility check is not. */ }
   // 只验「用户消息改写」这条路径：助手回复已不在功能范围内，删除缺宿主补丁时会在请求里
   // 明确拒绝并说明原因，不再让整块插件因补丁缺失而启动失败。
   if (!report.ok) {
@@ -57,7 +59,7 @@ export async function apply(ctx) {
           if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] ?? '')) throw fail('需要 JSON 请求', 415);
           send(res, 200, await pick(await readBody(req)));
         }
-      } catch (error) { send(res, error.status ?? 500, { ok: false, error: error.message }); }
+      } catch (error) { send(res, error.status ?? 500, { ok: false, error: error.message, ...(error.deleteApplied === true ? { deleteApplied: true } : {}) }); }
     } }));
   }
   return () => { for (const dispose of disposers) if (typeof dispose === 'function') dispose(); };
